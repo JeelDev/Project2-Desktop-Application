@@ -1,0 +1,310 @@
+﻿@page "/reservations"
+
+@using Assignment2Group10.Components.Pages.Data;
+@using System.Text;
+@inject IJSRuntime JS;
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    .column {
+        float: left;
+        width: 50%;
+        padding: 10px;
+        height: 350px;
+    }
+
+    .row:after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+
+    .ColumnB {
+        content: "";
+        display: table;
+        clear: both;
+    }
+
+    .myself .property {
+        width: 25%;
+        display: inline-block;
+        box-sizing: border-box;
+        text-align: right;
+    }
+
+    .myself .value {
+        text-align: left;
+        padding-left: 10px;
+        width: 70%;
+        display: inline-block;
+        box-sizing: border-box;
+    }
+
+
+    .container {
+        position: relative;
+    }
+
+    .center {
+        position: absolute;
+        left: 40%;
+    }
+    .columnC {
+        float: left;
+        width: 100%;
+        padding: 10px;
+        height: 150px;
+        box-sizing: border-box;
+    }
+
+    .columnB {
+        clear: both;
+        width: 100%;
+        padding: 10px;
+        height: 150px;
+        margin-top: 450px;
+    }
+
+    .columnD {
+        clear: both;
+        width: 100%;
+        padding-top: 130px;
+        height: 350px;
+    }
+
+    .myself .valueC {
+        text-align: left;
+        padding-left: 10px;
+        width: 70%;
+        display: inline-block;
+        box-sizing: border-box;
+    }
+
+    .myself .propertyC {
+        width: 25%;
+        display: inline-block;
+        box-sizing: border-box;
+        text-align: right;
+    }
+
+    .form-control {
+        width: 100%;
+    }
+
+    .button1 {
+        width: 300px;
+    }
+</style>
+
+<div class="row">
+    <div class="columnC myself">
+        <div class="row">
+            <div class="center">
+                <h3>Check Reservations By Code, Name, or Airline</h3>
+            </div>
+        </div>
+        <br />
+        <div>
+            <label>Reservation Code: </label><input class="form-control" type="text" id="code" name="code" @bind="inputResCode">
+            <label>Airline: </label><input class="form-control" type="text" id="airline" name="airline" @bind="inputAirline">
+            <label>Traveller Name: </label><input class="form-control" type="text" id="name" name="name" @bind="inputName">
+            <br />
+
+            <div class="row">
+                <div class="center">
+                    <button class="btn btn-primary mx-5" @onclick="SearchReservations">Find Reservations</button>
+                </div>
+            </div>
+        </div>
+        <br />
+        
+        <br />
+        <br />
+        <div class="row">
+            <div class="center">
+                <h3 class="mx-4">Your Reservations</h3>
+            </div>
+        </div>
+        <br />
+        <br />
+        <select class="form-control" onfocus="this.selectedIndex = -1;" @onchange = "@fillForm">
+            <option value=" " selected>Please select a reservation</option>
+            @if (resNew.Count() == 0)
+            {
+                <option>Loading...</option>
+            }
+            else
+            {
+                @foreach (var res in resNew)
+                {
+                    <option value="@res.Code"> @res.Code,@res.FlightCode,@res.Airline,@res.Cost,@res.Name,@res.Citizenship,@res.Active </option>
+                }
+            }
+        </select>
+        <br />
+        <br />
+        <br />
+        <div>
+            <label>Reservation code:</label> <input class="form-control" type="text" placeholder="Reservation Code" value="@currentReservation" readonly>
+            <label>Flight code:</label><input class="form-control" type="text" placeholder="Flight code" value="@flightCode" readonly>
+            <label>Airline Name:</label> <input class="form-control" type="text" placeholder="Airline" value="@airline" readonly>
+            <label>Cost:</label> <input class="form-control" type="text" placeholder="Cost" value="@cost" readonly>
+            <label>Passenger Name:</label> <input class="form-control" type="text" placeholder="Name"  @bind="@passengerName">
+            <label>Citizenship:</label> <input class="form-control" type="text" placeholder="Citizenship"  @bind="@citizenship">
+            <label>Reservation Status:</label> <input class="form-control" type="text" placeholder="status" @bind="@reservationStatus">
+
+        </div>
+        <br />
+        <div>
+            <br />
+            <div class="row">
+                <div class="center">
+                    <button class="btn btn-primary button1" @onclick="UpdateReservation">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@code {
+
+    // Input fields for searching and managing reservations
+    string inputResCode = "";           // Holds the reservation code input by the user
+    string inputAirline = "";           // Holds the airline input by the user
+    string inputName = "";              // Holds the passenger name input by the user
+
+    // Variables to store details of the current reservation
+    string? currentReservation = "";    // Holds the current reservation code selected by the user
+    string flightCode = "";             // Holds the flight code of the current reservation
+    string airline = "";                // Holds the airline of the current reservation
+    string cost = "";                   // Holds the cost of the current reservation
+    string passengerName = "";          // Holds the name of the passenger in the current reservation
+    string citizenship = "";            // Holds the citizenship of the passenger in the current reservation
+    string reservationStatus = "";      // Holds the status of the current reservation (Active or Cancelled)
+
+    // Holds the currently selected reservation object
+    Reservation? currReservation;
+
+    // Instance of ReservationManager to manage reservation-related operations
+    ReservationManager rm = new ReservationManager();
+
+    // List to hold all reservations retrieved from the manager
+    List<Reservation>? reservations;
+
+    // List to hold filtered reservations based on user search criteria
+    List<Reservation> resNew = new List<Reservation>();
+
+    // Method to populate form fields with details of the selected reservation
+    private void fillForm(ChangeEventArgs e)
+    {
+        // Retrieve all reservations
+        reservations = ReservationManager.GetReservations();
+
+        // Get the selected reservation code from the event
+        currentReservation = e.Value?.ToString();
+
+        // Find the reservation object with the matching code
+        Reservation? res = reservations.Find(e => e.Code == currentReservation);
+
+        // If reservation is found, populate form fields with its details
+        if (res != null)
+        {
+            flightCode = res.FlightCode;
+            airline = res.Airline;
+            cost = res.Cost.ToString();
+            passengerName = res.Name;
+            citizenship = res.Citizenship;
+            reservationStatus = res.Active;
+            currReservation = new Reservation(res);
+        }
+    }
+
+    // Method to update the details of the current reservation
+    private async void UpdateReservation()
+    {
+        // Check if a reservation is selected
+        if (currReservation == null)
+        {
+            await ShowAlert("Please select a reservation first");
+            return;
+        }
+
+        // Check if the reservation status is valid
+        if (reservationStatus != "Active" && reservationStatus != "Cancelled")
+        {
+            await ShowAlert("Invalid status value");
+            return;
+        }
+
+        // Update the name and citizenship of the reservation
+        currReservation.Name = passengerName;
+        currReservation.Citizenship = citizenship;
+
+        // If the reservation is being cancelled, increase the available seats in the flight
+        if (currReservation.Active == "Active" && reservationStatus == "Cancelled")
+        {
+            Flight flight = FlightManager.findFlightByCode(currReservation.FlightCode);
+            flight.Seats += 1;
+        }
+
+        // Update the status of the reservation
+        currReservation.Active = reservationStatus;
+
+        // Persist the updated reservation details
+        rm.UpdateReservation(currReservation);
+
+        // Show a success message
+        await ShowAlert("Reservation updated successfully");
+    }
+
+    // Method to show an alert message to the user
+    private async Task ShowAlert(string message)
+    {
+        await JS.InvokeVoidAsync("ShowAlert", message);
+    }
+
+    // Method to search for reservations based on user input criteria
+    private void SearchReservations()
+    {
+        // Clear current reservation and form fields
+        currentReservation = "";
+        flightCode = "";
+        airline = "";
+        cost = "";
+        passengerName = "";
+        citizenship = "";
+        reservationStatus = "";
+        resNew.Clear();
+
+        // Retrieve all reservations
+        reservations = ReservationManager.GetReservations();
+
+        // If any search criteria is provided by the user
+        if ((inputResCode != "") || (inputAirline != "") || (inputName != ""))
+        {
+            // Filter reservations based on search criteria
+            foreach (var res in reservations)
+            {
+                if (((inputResCode != "") && (inputResCode.ToUpper() == res.Code.ToUpper())) ||
+                    ((inputAirline != "") && (inputAirline.ToUpper() == res.Airline.ToUpper())) ||
+                    ((inputName != "") && (inputName.ToUpper() == res.Name.ToUpper())))
+                {
+                    Reservation NewReservation = new Reservation(res.Code, res.FlightCode, res.Airline, res.Cost, res.Name, res.Citizenship, res.Active);
+                    resNew.Add(NewReservation);
+                }
+            }
+        }
+        else
+        {
+            // If no search criteria is provided, show all reservations
+            resNew = reservations;
+        }
+    }
+
+    
+}
